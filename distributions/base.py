@@ -12,6 +12,7 @@ class Energy(ABC):
     The Boltzmann target is pi_beta(x) ∝ exp(-beta * E(x)).
     Subclasses must implement energy() and dim.
     grad_energy() defaults to autograd but can be overridden for speed/correctness.
+    True global minimum/minima and energy value also available
     """
 
     @abstractmethod
@@ -40,6 +41,16 @@ class Energy(ABC):
             e = self.energy(x)
             grads = torch.autograd.grad(e.sum(), x)[0]
         return grads.detach()
+
+    @property 
+    def global_minima(self) -> torch.Tensor | None: 
+        """Global minima of the energy."""
+        return None
+    
+    @property 
+    def global_minimum_energy(self) -> float | None: 
+        """Global minimum energy value"""
+        return None 
 
     @property
     @abstractmethod
