@@ -33,3 +33,11 @@ class Rastrigin(Energy):
         A = self.A
         d = self._dim
         return A * d + (x**2 - A * torch.cos(2 * math.pi * x)).sum(-1)
+    
+    @property
+    def global_minima(self) -> torch.Tensor | None:
+        return torch.zeros(1, self.dim) 
+
+    @property
+    def global_minimum_energy(self) -> float | None:
+        return 0.0 

@@ -37,3 +37,12 @@ class Ackley(Energy):
         term1 = -self.a * torch.exp(-self.b * torch.sqrt((x**2).mean(-1)))
         term2 = -torch.exp(torch.cos(self.c * x).mean(-1))
         return term1 + term2 + self.a + math.e
+    
+    @property
+    def global_minima(self) -> torch.Tensor | None:
+        return torch.zeros(1, self.dim) 
+
+    @property
+    def global_minimum_energy(self) -> float | None:
+        return 0.0 
+

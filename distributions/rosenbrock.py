@@ -32,3 +32,12 @@ class Rosenbrock(Energy):
         xi = x[:, :-1]
         xi1 = x[:, 1:]
         return (self.a * (xi1 - xi**2)**2 + (1 - xi)**2).sum(-1)
+    
+    @property
+    def global_minima(self) -> torch.Tensor | None:
+        return torch.ones(1, self.dim) 
+
+    @property
+    def global_minimum_energy(self) -> float | None:
+        return 0.0 
+

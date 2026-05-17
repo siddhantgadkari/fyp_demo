@@ -37,6 +37,19 @@ class DoubleWell(Energy):
             harmonic = torch.zeros_like(well)
         return well + harmonic
 
+    @property
+    def global_minima(self) -> torch.Tensor | None:
+        x = torch.zeros(2, self.dim)
+        x[:, 0] = torch.tensor([
+            -(self.b / 2) ** 0.5,
+             (self.b / 2) ** 0.5,
+        ])
+        return x
+
+    @property
+    def global_minimum_energy(self) -> float | None:
+        return -self.a * self.b**2 / 4
+
 
 class ManyWell(Energy):
     """Many-well potential: product of double-wells in pairs of dimensions.
@@ -74,3 +87,24 @@ class ManyWell(Energy):
         if self._dim % 2 == 1:
             total += self.c * x[:, -1] ** 2
         return total
+
+    @property
+    def global_minima(self) -> torch.Tensor | None:
+        n_wells = self.dim // 2
+        val = (self.b / 2) ** 0.5
+
+        signs = torch.cartesian_prod(*[
+            torch.tensor([-1.0, 1.0]) for _ in range(n_wells)
+        ])
+
+        minima = torch.zeros(signs.shape[0], self.dim)
+
+        for k in range(n_wells):
+            minima[:, 2 * k] = signs[:, k] * val
+
+        return minima
+
+    @property
+    def global_minimum_energy(self) -> float | None:
+        n_wells = self.dim // 2
+        return -n_wells * self.a * self.b**2 / 4
