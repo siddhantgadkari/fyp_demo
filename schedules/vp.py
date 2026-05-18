@@ -12,7 +12,7 @@ class VPSchedule(DiffusionSchedule):
     Linear beta schedule:  beta(t) = beta_min + (beta_max - beta_min) * t
 
     Marginal:
-        alpha(t) = exp(-0.5 * int_0^t beta(s) ds)
+        alpha(t) = exp(-0.5 * ∫{0->t} beta(s) ds)
         sigma(t) = sqrt(1 - alpha(t)^2)
 
     At t=0: alpha=1, sigma=0 (clean).
@@ -24,7 +24,7 @@ class VPSchedule(DiffusionSchedule):
         self.beta_max = beta_max
 
     def _int_beta(self, t: torch.Tensor) -> torch.Tensor:
-        """int_0^t beta(s) ds = beta_min*t + 0.5*(beta_max-beta_min)*t^2"""
+        """∫{0->t} beta(s) ds = beta_min*t + 0.5*(beta_max-beta_min)*t^2"""
         return self.beta_min * t + 0.5 * (self.beta_max - self.beta_min) * t**2
 
     def beta(self, t: torch.Tensor) -> torch.Tensor:
