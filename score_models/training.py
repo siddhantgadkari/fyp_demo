@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from .losses import dsm_loss
 from .mlp_score import MLPScore
+from ..schedules.base import DiffusionSchedule
 
 
 @dataclass
@@ -31,7 +32,7 @@ def _ema_update(ema_model: MLPScore, model: MLPScore, decay: float) -> None:
 
 def train_score_model(
     model: MLPScore,
-    schedule,
+    schedule: DiffusionSchedule,
     sample_fn: Callable[[int], torch.Tensor],
     config: TrainingConfig,
     device: torch.device,
