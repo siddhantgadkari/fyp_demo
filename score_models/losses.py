@@ -36,18 +36,3 @@ def dsm_loss(
     return ((eps_pred - eps) ** 2).sum(-1).mean()
 
 
-def weighted_dsm_loss(
-    model: torch.nn.Module,
-    x0: torch.Tensor,
-    schedule,
-    t_eps: float = 1e-4,
-) -> torch.Tensor:
-    """DSM loss with sigma^2 weighting (matches theoretical score matching loss).
-
-        L = E[ sigma(t)^2 / 2 * || score_pred - cond_score ||^2 ]
-          = E[ || eps_pred - eps ||^2 / 2 ]
-
-    Equivalent to dsm_loss up to a constant of 0.5.
-    Provided for reference; dsm_loss is preferred.
-    """
-    return 0.5 * dsm_loss(model, x0, schedule, t_eps)
