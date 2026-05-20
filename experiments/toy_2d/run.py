@@ -50,6 +50,7 @@ from amortised_annealing.distributions import DoubleWell, GaussianMixture, Rastr
 from amortised_annealing.distributions.base import BoltzmannDistribution
 from amortised_annealing.experiments.toy_2d.config import ExperimentConfig
 from amortised_annealing.fkc.annealed_correctors import AnnealedDiffusionProposal
+from amortised_annealing.fkc.fkc_annealed_proposal import FKCAnnealedDiffusionProposal
 from amortised_annealing.fkc.weight_updates import annealing_weight_update
 from amortised_annealing.schedules import VPSchedule, VESchedule, make_ladder
 from amortised_annealing.score_models import MLPScore, TrainingConfig, train_score_model
@@ -144,6 +145,33 @@ def build_no_correction_smc(energy, reverse_sde, beta_train, cfg, device):
 def build_diffusion_smc(energy, reverse_sde, beta_train, cfg, device):
     """Diffusion-informed SMC WITH AIS weight correction (proposed method)."""
     proposal = AnnealedDiffusionProposal(
+        reverse_sde=reverse_sde,
+        energy_fn=energy.energy,
+        beta_train=beta_train,
+        n_diffusion_steps=cfg.diffusion_smc.n_diffusion_steps,
+        t_start=cfg.diffusion_smc.t_start,
+        t_end=cfg.diffusion_smc.t_end,
+        use_score_scaling=cfg.diffusion_smc.use_score_scaling,
+        langevin_steps=cfg.diffusion_smc.langevin_steps,
+        langevin_step_size=cfg.diffusion_smc.langevin_step_size,
+    )
+    return SMCSampler(
+        mutation_kernel=proposal.mutation_kernel,
+        weight_update=proposal.weight_update,
+        energy_fn=energy.energy,
+        ess_threshold=cfg.smc.ess_threshold,
+        resampling_method=cfg.smc.resampling,
+    )
+
+
+def build_fkc_smc(energy, reverse_sde, beta_train, cfg, device):
+    """Diffusion SMC with path-space FKC correction (Feynman-Kac method).
+
+    Accumulates the FKC log-weight ∫g_β(t, X_t) dt along the reverse diffusion
+    trajectory. By Girsanov's theorem this IS the complete path-measure IS weight —
+    no additional AIS endpoint correction is applied.
+    """
+    proposal = FKCAnnealedDiffusionProposal(
         reverse_sde=reverse_sde,
         energy_fn=energy.energy,
         beta_train=beta_train,
@@ -307,7 +335,22 @@ def run(cfg: ExperimentConfig, args):
     )
     print_metrics("Diffusion-informed SMC (proposed)", metrics_diffusion_smc)
 
-    # ── 9. Plots ──────────────────────────────────────────────────────────────
+    # ── 9. FKC: Diffusion SMC with path-space AIS+FKC correction ────────────
+    print("\n── Diffusion SMC WITH AIS+FKC path correction (FKC method) ──")
+    sampler_fkc = build_fkc_smc(energy, reverse_sde, beta_train, cfg, device)
+    init_cloud_3 = ParticleCloud(
+        x=x_diffusion_betaM.clone(),
+        log_weights=torch.zeros(N, device=device),
+    )
+    t0 = time.time()
+    cloud_fkc, diag_fkc = sampler_fkc.run(
+        init_cloud_3, beta_ladder, show_progress=True
+    )
+    print(f"Done in {time.time()-t0:.1f}s. Resamples: {diag_fkc.n_resamples}")
+    metrics_fkc = compute_metrics(cloud_fkc.x, energy.energy, cloud_fkc.log_weights)
+    print_metrics("Diffusion SMC (AIS+FKC)", metrics_fkc)
+
+    # ── 10. Plots ─────────────────────────────────────────────────────────────
     print("\n── Generating plots ──")
 
     if energy.dim == 2:
@@ -320,7 +363,8 @@ def run(cfg: ExperimentConfig, args):
                 f"Diffusion (β_M={beta_train})": x_diffusion_betaM.cpu(),
                 f"Classical SMC": cloud_classical.x.cpu(),
                 f"Diff. SMC (no corr.)": cloud_no_corr.x.cpu(),
-                f"Diff. SMC (proposed)": cloud_diffusion_smc.x.cpu(),
+                f"Diff. SMC (AIS)": cloud_diffusion_smc.x.cpu(),
+                f"Diff. SMC (AIS+FKC)": cloud_fkc.x.cpu(),
             },
             energy_fn=energy.energy,
             xlim=xlim, ylim=ylim,
@@ -335,6 +379,8 @@ def run(cfg: ExperimentConfig, args):
         plt.close(fig)
         fig = plot_smc_diagnostics(diag_diffusion_smc, save_path=str(out_dir / "diag_diffusion_smc.png"))
         plt.close(fig)
+        fig = plot_smc_diagnostics(diag_fkc, save_path=str(out_dir / "diag_fkc_smc.png"))
+        plt.close(fig)
 
     # Energy histograms
     fig = plot_energy_histogram(
@@ -342,7 +388,8 @@ def run(cfg: ExperimentConfig, args):
             f"Diffusion (β_M={beta_train})": x_diffusion_betaM.cpu(),
             "Classical SMC": cloud_classical.x.cpu(),
             "Diff. SMC (no corr.)": cloud_no_corr.x.cpu(),
-            "Diff. SMC (proposed)": cloud_diffusion_smc.x.cpu(),
+            "Diff. SMC (AIS)": cloud_diffusion_smc.x.cpu(),
+            "Diff. SMC (AIS+FKC)": cloud_fkc.x.cpu(),
         },
         energy_fn=energy.energy,
         beta=beta_final,
@@ -364,7 +411,8 @@ def run(cfg: ExperimentConfig, args):
             "direct_diffusion": metrics_diffusion,
             "classical_smc": metrics_classical,
             "diffusion_smc_no_correction": metrics_no_corr,
-            "diffusion_smc_proposed": metrics_diffusion_smc,
+            "diffusion_smc_ais": metrics_diffusion_smc,
+            "diffusion_smc_fkc": metrics_fkc,
         },
     }
     with open(out_dir / "summary.json", "w") as f:
@@ -375,7 +423,8 @@ def run(cfg: ExperimentConfig, args):
     print(f"  Direct diffusion (β_M):          {metrics_diffusion['best_energy']:.4f}")
     print(f"  Classical annealed SMC:           {metrics_classical['best_energy']:.4f}")
     print(f"  Diffusion SMC (no correction):    {metrics_no_corr['best_energy']:.4f}")
-    print(f"  Diffusion-informed SMC (proposed):{metrics_diffusion_smc['best_energy']:.4f}")
+    print(f"  Diffusion SMC (AIS):              {metrics_diffusion_smc['best_energy']:.4f}")
+    print(f"  Diffusion SMC (AIS+FKC):          {metrics_fkc['best_energy']:.4f}")
 
     return summary
 
