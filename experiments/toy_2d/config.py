@@ -3,23 +3,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from amortised_annealing.score_models.training import TrainingConfig
+
 
 @dataclass
 class EnergyConfig:
     type: str = "double_well"   # "double_well" | "gmm" | "rastrigin" | "ackley"
     dim: int = 2
-
-
-@dataclass
-class TrainingConfig:
-    beta_train: float = 1.0      # inverse temperature for training data
-    n_steps: int = 15_000
-    batch_size: int = 512
-    lr: float = 2e-4
-    grad_clip: float = 1.0
-    ema_decay: float = 0.999
-    log_every: int = 500
-    seed: int = 0
+    beta_train: float = 1.0     # inverse temperature for training data
 
 
 @dataclass
@@ -56,7 +47,7 @@ class DiffusionSMCConfig(SMCConfig):
     t_start: float = 0.4          # partial noise injection time
     t_end: float = 1e-3
     use_score_scaling: bool = True
-    langevin_steps: int = 5
+    langevin_steps: int = 0
     langevin_step_size: float = 5e-3
 
 
@@ -73,7 +64,7 @@ class ExperimentConfig:
     device: str = "auto"          # "auto" | "cpu" | "mps" | "cuda"
     output_dir: str = "results/toy_2d"
     energy: EnergyConfig = field(default_factory=EnergyConfig)
-    training: TrainingConfig = field(default_factory=TrainingConfig)
+    training: TrainingConfig = field(default_factory=lambda: TrainingConfig(n_steps=15_000))
     diffusion: DiffusionConfig = field(default_factory=DiffusionConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     smc: SMCConfig = field(default_factory=SMCConfig)

@@ -53,7 +53,7 @@ from amortised_annealing.fkc.annealed_correctors import AnnealedDiffusionProposa
 from amortised_annealing.fkc.fkc_annealed_proposal import FKCAnnealedDiffusionProposal
 from amortised_annealing.fkc.weight_updates import annealing_weight_update
 from amortised_annealing.schedules import VPSchedule, VESchedule, make_ladder
-from amortised_annealing.score_models import MLPScore, TrainingConfig, train_score_model
+from amortised_annealing.score_models import MLPScore, train_score_model
 from amortised_annealing.smc import ParticleCloud, SMCSampler
 
 
@@ -104,7 +104,7 @@ def make_sampler_fn(energy, beta_train: float, device: torch.device):
         from amortised_annealing.baselines.langevin import ULA
         ula = ULA(energy.energy, step_size=5e-3)
         x = torch.randn(n, energy.dim, device=device)
-        return ula.run(x, beta_train, n_steps=500)
+        return ula.run(x, beta_train, n_steps=50)
 
     return sample_fn
 
@@ -212,7 +212,7 @@ def run(cfg: ExperimentConfig, args):
 
     # ── 1. Build energy ──────────────────────────────────────────────────────
     energy = build_energy(cfg)
-    beta_train = cfg.training.beta_train
+    beta_train = cfg.energy.beta_train
     beta_final = cfg.smc.beta_final
     print(f"\nEnergy: {cfg.energy.type} ({energy.dim}D)")
     print(f"Training beta: {beta_train}  →  Target beta: {beta_final}")
@@ -236,18 +236,9 @@ def run(cfg: ExperimentConfig, args):
     else:
         print(f"\n── Training score model at β_M = {beta_train} ──")
         sample_fn = make_sampler_fn(energy, beta_train, device)
-        train_cfg = TrainingConfig(
-            n_steps=cfg.training.n_steps,
-            batch_size=cfg.training.batch_size,
-            lr=cfg.training.lr,
-            grad_clip=cfg.training.grad_clip,
-            ema_decay=cfg.training.ema_decay,
-            log_every=cfg.training.log_every,
-            seed=cfg.seed,
-        )
         t0 = time.time()
         model, loss_history = train_score_model(
-            model, schedule, sample_fn, train_cfg, device
+            model, schedule, sample_fn, cfg.training, device
         )
         print(f"Training done in {time.time()-t0:.1f}s. Final loss: {loss_history[-1]:.4f}")
         torch.save(model.state_dict(), checkpoint_path)
@@ -335,8 +326,8 @@ def run(cfg: ExperimentConfig, args):
     )
     print_metrics("Diffusion-informed SMC (proposed)", metrics_diffusion_smc)
 
-    # ── 9. FKC: Diffusion SMC with path-space AIS+FKC correction ────────────
-    print("\n── Diffusion SMC WITH AIS+FKC path correction (FKC method) ──")
+    # ── 9. FKC: Diffusion SMC with path-space FKC correction ────────────
+    print("\n── Diffusion SMC WITH FKC path correction ──")
     sampler_fkc = build_fkc_smc(energy, reverse_sde, beta_train, cfg, device)
     init_cloud_3 = ParticleCloud(
         x=x_diffusion_betaM.clone(),
@@ -348,7 +339,7 @@ def run(cfg: ExperimentConfig, args):
     )
     print(f"Done in {time.time()-t0:.1f}s. Resamples: {diag_fkc.n_resamples}")
     metrics_fkc = compute_metrics(cloud_fkc.x, energy.energy, cloud_fkc.log_weights)
-    print_metrics("Diffusion SMC (AIS+FKC)", metrics_fkc)
+    print_metrics("Diffusion SMC (FKC)", metrics_fkc)
 
     # ── 10. Plots ─────────────────────────────────────────────────────────────
     print("\n── Generating plots ──")
@@ -364,7 +355,7 @@ def run(cfg: ExperimentConfig, args):
                 f"Classical SMC": cloud_classical.x.cpu(),
                 f"Diff. SMC (no corr.)": cloud_no_corr.x.cpu(),
                 f"Diff. SMC (AIS)": cloud_diffusion_smc.x.cpu(),
-                f"Diff. SMC (AIS+FKC)": cloud_fkc.x.cpu(),
+                f"Diff. SMC (FKC)": cloud_fkc.x.cpu(),
             },
             energy_fn=energy.energy,
             xlim=xlim, ylim=ylim,
@@ -389,7 +380,7 @@ def run(cfg: ExperimentConfig, args):
             "Classical SMC": cloud_classical.x.cpu(),
             "Diff. SMC (no corr.)": cloud_no_corr.x.cpu(),
             "Diff. SMC (AIS)": cloud_diffusion_smc.x.cpu(),
-            "Diff. SMC (AIS+FKC)": cloud_fkc.x.cpu(),
+            "Diff. SMC (FKC)": cloud_fkc.x.cpu(),
         },
         energy_fn=energy.energy,
         beta=beta_final,
@@ -424,7 +415,7 @@ def run(cfg: ExperimentConfig, args):
     print(f"  Classical annealed SMC:           {metrics_classical['best_energy']:.4f}")
     print(f"  Diffusion SMC (no correction):    {metrics_no_corr['best_energy']:.4f}")
     print(f"  Diffusion SMC (AIS):              {metrics_diffusion_smc['best_energy']:.4f}")
-    print(f"  Diffusion SMC (AIS+FKC):          {metrics_fkc['best_energy']:.4f}")
+    print(f"  Diffusion SMC (FKC):          {metrics_fkc['best_energy']:.4f}")
 
     return summary
 
@@ -464,8 +455,9 @@ if __name__ == "__main__":
     )
     cfg.energy.type = args.energy
     cfg.energy.dim = 2
-    cfg.training.beta_train = args.beta_train
+    cfg.energy.beta_train = args.beta_train
     cfg.training.n_steps = args.n_steps
+    cfg.training.seed = cfg.seed
     cfg.smc.n_particles = args.n_particles
     cfg.smc.beta_final = args.beta_final
     cfg.smc.n_beta_steps = args.n_beta_steps
