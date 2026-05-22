@@ -42,7 +42,7 @@ class SMCConfig:
 
 
 @dataclass
-class DiffusionSMCConfig(SMCConfig):
+class DiffusionSMCConfig:
     n_diffusion_steps: int = 20   # reverse SDE steps per SMC mutation
     t_start: float = 0.4          # partial noise injection time
     t_end: float = 1e-3

@@ -1,0 +1,72 @@
+{
+  "config": {
+    "energy": "rastrigin",
+    "dim": 2,
+    "beta_train": 1.0,
+    "beta_final": 20.0,
+    "n_particles": 1024,
+    "seed": 3
+  },
+  "metrics": {
+    "direct_diffusion": {
+      "best_energy": 0.8832206726074219,
+      "mean_energy": 22.09805679321289,
+      "weighted_mean_energy": 22.09805679321289,
+      "std_energy": 9.97950553894043,
+      "q10_energy": 8.510045051574707,
+      "q25_energy": 15.16316032409668,
+      "q50_energy": 22.17444610595703,
+      "ess": 1024.0,
+      "ess_ratio": 1.0,
+      "n_particles": 1024
+    },
+    "classical_smc": {
+      "best_energy": 3.5962486267089844,
+      "mean_energy": 3.6851587295532227,
+      "weighted_mean_energy": 3.6851587295532227,
+      "std_energy": 0.35854920744895935,
+      "q10_energy": 3.5962486267089844,
+      "q25_energy": 3.5962486267089844,
+      "q50_energy": 3.5962486267089844,
+      "ess": 1024.0,
+      "ess_ratio": 1.0,
+      "n_particles": 1024
+    },
+    "diffusion_smc_no_correction": {
+      "best_energy": 0.0050048828125,
+      "mean_energy": 10.305614471435547,
+      "weighted_mean_energy": 10.305614471435547,
+      "std_energy": 7.62429666519165,
+      "q10_energy": 1.4447346925735474,
+      "q25_energy": 3.793680191040039,
+      "q50_energy": 9.033560752868652,
+      "ess": 1024.0,
+      "ess_ratio": 1.0,
+      "n_particles": 1024
+    },
+    "diffusion_smc_ais": {
+      "best_energy": 0.009931564331054688,
+      "mean_energy": 0.551828145980835,
+      "weighted_mean_energy": 0.551828145980835,
+      "std_energy": 0.5646969676017761,
+      "q10_energy": 0.037014007568359375,
+      "q25_energy": 0.12022781372070312,
+      "q50_energy": 0.4256095886230469,
+      "ess": 1024.0,
+      "ess_ratio": 1.0,
+      "n_particles": 1024
+    },
+    "diffusion_smc_fkc": {
+      "best_energy": 6.675764083862305,
+      "mean_energy": 6.675764083862305,
+      "weighted_mean_energy": 6.675764083862305,
+      "std_energy": 0.0,
+      "q10_energy": 6.675764083862305,
+      "q25_energy": 6.675764083862305,
+      "q50_energy": 6.675764083862305,
+      "ess": 1024.0,
+      "ess_ratio": 1.0,
+      "n_particles": 1024
+    }
+  }
+}

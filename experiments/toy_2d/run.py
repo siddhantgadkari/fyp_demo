@@ -91,7 +91,7 @@ def build_schedule(cfg: ExperimentConfig):
         raise ValueError(f"Unknown schedule: {cfg.diffusion.schedule!r}")
 
 
-def make_sampler_fn(energy, beta_train: float, device: torch.device):
+def make_sampler_fn(energy, beta_train: float, device: torch.device, ula_steps: int = 50, ula_step_size: float = 5e-3):
     """Return a function (n) -> [n, d] samples from pi_{beta_train}."""
     boltz = BoltzmannDistribution(energy, beta_train)
 
@@ -102,9 +102,9 @@ def make_sampler_fn(energy, beta_train: float, device: torch.device):
             return s
         # Otherwise use Langevin on pi_{beta_train}
         from amortised_annealing.baselines.langevin import ULA
-        ula = ULA(energy.energy, step_size=5e-3)
+        ula = ULA(energy.energy, step_size=ula_step_size)
         x = torch.randn(n, energy.dim, device=device)
-        return ula.run(x, beta_train, n_steps=50)
+        return ula.run(x, beta_train, n_steps=ula_steps)
 
     return sample_fn
 
@@ -235,7 +235,7 @@ def run(cfg: ExperimentConfig, args):
         loss_history = []
     else:
         print(f"\n── Training score model at β_M = {beta_train} ──")
-        sample_fn = make_sampler_fn(energy, beta_train, device)
+        sample_fn = make_sampler_fn(energy, beta_train, device=device)
         t0 = time.time()
         model, loss_history = train_score_model(
             model, schedule, sample_fn, cfg.training, device
@@ -274,7 +274,7 @@ def run(cfg: ExperimentConfig, args):
 
     # ── 6. Baseline 2: Classical annealed SMC ────────────────────────────────
     print("\n── Classical annealed SMC (ULA mutation) ──")
-    x_high_temp = make_sampler_fn(energy, beta_train, device)(N)
+    x_high_temp = make_sampler_fn(energy, beta_train, device=device)(N)
     classical_smc = ClassicalAnnealedSMC(
         energy.energy,
         langevin_step_size=cfg.langevin.step_size,
@@ -461,6 +461,4 @@ if __name__ == "__main__":
     cfg.smc.n_particles = args.n_particles
     cfg.smc.beta_final = args.beta_final
     cfg.smc.n_beta_steps = args.n_beta_steps
-    cfg.diffusion_smc.n_beta_steps = args.n_beta_steps
-
     run(cfg, args)
