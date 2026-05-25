@@ -70,3 +70,5 @@ class ExperimentConfig:
     smc: SMCConfig = field(default_factory=SMCConfig)
     diffusion_smc: DiffusionSMCConfig = field(default_factory=DiffusionSMCConfig)
     langevin: LangevinConfig = field(default_factory=LangevinConfig)
+
+

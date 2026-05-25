@@ -31,6 +31,7 @@ from pathlib import Path
 
 import torch
 
+
 # Allow running as script from the repo root
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -46,9 +47,10 @@ from amortised_annealing.diagnostics.plotting import (
 )
 from amortised_annealing.diffusion.reverse_sde import ReverseSDE
 from amortised_annealing.diffusion.samplers import euler_maruyama_sample
-from amortised_annealing.distributions import DoubleWell, GaussianMixture, Rastrigin, Ackley
+from amortised_annealing.distributions import DoubleWell, GaussianMixture, Rastrigin, Ackley, Quadratic
 from amortised_annealing.distributions.base import BoltzmannDistribution
 from amortised_annealing.experiments.toy_2d.config import ExperimentConfig
+from amortised_annealing.fkc.fkc_annealed_sampler import FKCAnnealedSampler
 from amortised_annealing.fkc.annealed_correctors import AnnealedDiffusionProposal
 from amortised_annealing.fkc.fkc_annealed_proposal import FKCAnnealedDiffusionProposal
 from amortised_annealing.fkc.weight_updates import annealing_weight_update
@@ -78,6 +80,8 @@ def build_energy(cfg: ExperimentConfig):
         return Rastrigin(dim=dim)
     elif kind == "ackley":
         return Ackley(dim=dim)
+    elif kind == "quadratic":
+        return Quadratic(dim=dim)
     else:
         raise ValueError(f"Unknown energy type: {kind!r}")
 
@@ -190,6 +194,15 @@ def build_fkc_smc(energy, reverse_sde, beta_train, cfg, device):
         resampling_method=cfg.smc.resampling,
     )
 
+def build_fkc_sampler(reverse_sde, beta0, beta1, ess_threshold=0.5, n_diffusion_steps=10):
+    return FKCAnnealedSampler(
+        reverse_sde=reverse_sde,
+        beta0=beta0,
+        beta1=beta1,
+        n_diffusion_steps=n_diffusion_steps,
+        ess_threshold=ess_threshold,
+    )
+
 
 def print_metrics(name: str, metrics: dict):
     print(f"\n{'='*50}")
@@ -207,8 +220,14 @@ def run(cfg: ExperimentConfig, args):
     print(f"{'='*60}")
 
     torch.manual_seed(cfg.seed)
-    out_dir = Path(cfg.output_dir) / cfg.name
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # out_dir = Path(cfg.output_dir) / cfg.name
+    # out_dir.mkdir(parents=True, exist_ok=True)
+    # model_params = "score_model.pt"
+    out_dir = Path("/Users/siddhantgadkari/Desktop/JMC/YEAR_IV/FYP_clean/notebooks")
+    model_params = "SM_quadratic_beta1to10_5000_steps.pt"
+
+    # print(out_dir)
+    # print(out_dir.exists())
 
     # ── 1. Build energy ──────────────────────────────────────────────────────
     energy = build_energy(cfg)
@@ -226,7 +245,8 @@ def run(cfg: ExperimentConfig, args):
         activation=cfg.model.activation,
     )
 
-    checkpoint_path = out_dir / "score_model.pt"
+    checkpoint_path = out_dir / model_params
+
     if args.no_train and checkpoint_path.exists():
         print(f"\nLoading checkpoint from {checkpoint_path}")
         model.load_state_dict(torch.load(checkpoint_path, map_location=device))
@@ -327,19 +347,43 @@ def run(cfg: ExperimentConfig, args):
     print_metrics("Diffusion-informed SMC (proposed)", metrics_diffusion_smc)
 
     # ── 9. FKC: Diffusion SMC with path-space FKC correction ────────────
-    print("\n── Diffusion SMC WITH FKC path correction ──")
-    sampler_fkc = build_fkc_smc(energy, reverse_sde, beta_train, cfg, device)
-    init_cloud_3 = ParticleCloud(
-        x=x_diffusion_betaM.clone(),
-        log_weights=torch.zeros(N, device=device),
+
+    # print("\n── Diffusion SMC WITH FKC path correction ──")
+    # sampler_fkc = build_fkc_smc(energy, reverse_sde, beta_train, cfg, device)
+    # init_cloud_3 = ParticleCloud(
+    #     x=x_diffusion_betaM.clone(),
+    #     log_weights=torch.zeros(N, device=device),
+    # )
+    # t0 = time.time()
+    # cloud_fkc, diag_fkc = sampler_fkc.run(
+    #     init_cloud_3, beta_ladder, show_progress=True
+    # )
+    # print(f"Done in {time.time()-t0:.1f}s. Resamples: {diag_fkc.n_resamples}")
+    # metrics_fkc = compute_metrics(cloud_fkc.x, energy.energy, cloud_fkc.log_weights)
+    # print_metrics("Diffusion SMC (FKC)", metrics_fkc)
+    ##############################
+    print("\n── Diffusion 'SMC' WITH FKC path correction ──")
+    sampler_fkc = build_fkc_sampler(
+        reverse_sde=reverse_sde,
+        beta0=beta_train,
+        beta1=beta_final,
+        ess_threshold=cfg.smc.ess_threshold,
+        n_diffusion_steps=100
     )
     t0 = time.time()
     cloud_fkc, diag_fkc = sampler_fkc.run(
-        init_cloud_3, beta_ladder, show_progress=True
+        N=N,
+        d=energy.dim,
+        device=device,
+        show_progress=True,
     )
+
     print(f"Done in {time.time()-t0:.1f}s. Resamples: {diag_fkc.n_resamples}")
     metrics_fkc = compute_metrics(cloud_fkc.x, energy.energy, cloud_fkc.log_weights)
     print_metrics("Diffusion SMC (FKC)", metrics_fkc)
+
+
+    return 
 
     # ── 10. Plots ─────────────────────────────────────────────────────────────
     print("\n── Generating plots ──")
@@ -423,7 +467,7 @@ def run(cfg: ExperimentConfig, args):
 def parse_args():
     p = argparse.ArgumentParser(description="Toy 2D amortised annealing experiment")
     p.add_argument("--energy", default="double_well",
-                   choices=["double_well", "gmm", "rastrigin", "ackley"],
+                   choices=["double_well", "gmm", "rastrigin", "ackley", "quadratic"],
                    help="Energy function type")
     p.add_argument("--beta-train", type=float, default=1.0,
                    help="Inverse temperature used for training the score model")
