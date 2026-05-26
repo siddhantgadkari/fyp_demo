@@ -76,9 +76,16 @@ def train_score_model(
     model.train()
     pbar = tqdm(range(1, config.n_steps + 1), desc="Training score model", dynamic_ncols=True)
     for step in pbar:
+        # print(step)
         x0 = sample_fn(config.batch_size).to(device)
 
         loss = dsm_loss(model, x0, schedule, t_eps=config.t_eps)
+        # print(loss)
+
+        # after every training step, detect bad loss
+        # if not torch.isfinite(loss):
+        #     print("NaN loss at step", step)
+        #     break
 
         optimizer.zero_grad()
         loss.backward()
@@ -87,6 +94,7 @@ def train_score_model(
         scheduler.step()
 
         _ema_update(ema_model, model, config.ema_decay)
+
 
         running_loss += loss.item()
         if step % config.log_every == 0:

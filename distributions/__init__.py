@@ -4,6 +4,7 @@ from .double_well import DoubleWell, ManyWell
 from .rastrigin import Rastrigin
 from .ackley import Ackley
 from .rosenbrock import Rosenbrock
+from .quadratic import Quadratic
 
 __all__ = [
     "Energy",
@@ -14,4 +15,5 @@ __all__ = [
     "Rastrigin",
     "Ackley",
     "Rosenbrock",
+    "Quadratic"
 ]

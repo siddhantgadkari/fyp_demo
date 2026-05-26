@@ -81,7 +81,7 @@ class FKCAnnealedDiffusionProposal:
         dt = (self.t_start - self.t_end) / self.n_diffusion_steps
 
         fkc_logw = torch.zeros(N, device=device)
-        print("using updated kernel")
+        # print("using updated kernel")
         with torch.no_grad():
             x_cur = x_noisy
             for i in range(self.n_diffusion_steps):
@@ -91,22 +91,22 @@ class FKCAnnealedDiffusionProposal:
                 score = model.score(t, x_cur, schedule)
                 raw_score = model.score(t, x_cur, schedule)
 
-                print("raw finite:", torch.isfinite(raw_score).all().item())
-                print("raw nan:", torch.isnan(raw_score).any().item())
-                print("raw inf:", torch.isinf(raw_score).any().item())
-                print("raw min/max:", raw_score.nan_to_num().min().item(), raw_score.nan_to_num().max().item())
+                # print("raw finite:", torch.isfinite(raw_score).all().item())
+                # print("raw nan:", torch.isnan(raw_score).any().item())
+                # print("raw inf:", torch.isinf(raw_score).any().item())
+                # print("raw min/max:", raw_score.nan_to_num().min().item(), raw_score.nan_to_num().max().item())
                 score = torch.nan_to_num(score, nan=0.0, posinf=0.0, neginf=0.0)
                 score = score.clamp(-1e3, 1e3)
-                print(f"step {i+1}/{self.n_diffusion_steps}, score: mean {score.mean().item():.3f}, std {score.std().item():.3f}")
+                # print(f"step {i+1}/{self.n_diffusion_steps}, score: mean {score.mean().item():.3f}, std {score.std().item():.3f}")
 
                 # FKC increment: g_β(t, x) * dt  (score-norm term only)
                 # β(t) is the VP instantaneous noise level = diffusion coefficient²
                 beta_t = schedule.beta(t)                      # [N]
-                print(f"step {i+1}/{self.n_diffusion_steps}, beta_t: mean {beta_t.mean().item():.3f}, std {beta_t.std().item():.3f}")
+                # print(f"step {i+1}/{self.n_diffusion_steps}, beta_t: mean {beta_t.mean().item():.3f}, std {beta_t.std().item():.3f}")
                 norm_sq = (score ** 2).sum(dim=-1)             # [N]
-                print(f"step {i+1}/{self.n_diffusion_steps}, score norm²: mean {norm_sq.mean().item():.3f}, std {norm_sq.std().item():.3f}")
+                # print(f"step {i+1}/{self.n_diffusion_steps}, score norm²: mean {norm_sq.mean().item():.3f}, std {norm_sq.std().item():.3f}")
                 fkc_logw += (beta_rel - 1.0) * 0.5 * beta_t * beta_rel * norm_sq * dt
-                print(f"step {i+1}/{self.n_diffusion_steps}, FKC logw increment: mean {fkc_logw.mean().item():.3f}, std {fkc_logw.std().item():.3f}")
+                # print(f"step {i+1}/{self.n_diffusion_steps}, FKC logw increment: mean {fkc_logw.mean().item():.3f}, std {fkc_logw.std().item():.3f}")
 
                 # Euler-Maruyama step with (optionally) scaled score
                 drift = schedule.reverse_drift(t, x_cur, score * scale)
@@ -119,7 +119,7 @@ class FKCAnnealedDiffusionProposal:
             x_cur = self._ula_steps(x_cur, beta_curr)
 
         self._last_fkc_logw = fkc_logw
-        print("FKC log-weight stats: mean {:.3f}, std {:.3f}".format(fkc_logw.mean().item(), fkc_logw.std().item()))
+        # print("FKC log-weight stats: mean {:.3f}, std {:.3f}".format(fkc_logw.mean().item(), fkc_logw.std().item()))
         return x_cur
 
     def weight_update(
